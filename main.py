@@ -54,16 +54,16 @@ def shannon_fano_compress(data : bytes, codes : Dict[int, str]):
     codes_serialized = pickle.dumps(codes)
     codes_size = len(codes_serialized)      
 
-    bit_string = ''#pravim string koji ce da sadrzi sve kodove
+    bitString = ''#pravim string koji ce da sadrzi sve kodove
     for b in data: 
-        bit_string += codes[b] 
+        bitString += codes[b] 
 
-    bitsLeftForByte = (8 - len(bit_string) % 8) % 8 #dodajem nule na kraj da dobijem ceo bajt
-    bit_string += '0' * bitsLeftForByte
+    bitsLeftForByte = (8 - len(bitString) % 8) % 8 #dodajem nule na kraj da dobijem ceo bajt
+    bitString += '0' * bitsLeftForByte
 
     compressed_data = bytearray()
-    for i in range(0, len(bit_string), 8):#uzimam po 8 bitova da dobijem bajt
-        byte = bit_string[i:i+8]
+    for i in range(0, len(bitString), 8):#uzimam po 8 bitova da dobijem bajt
+        byte = bitString[i:i+8]
         compressed_data.append(int(byte, 2))
 
     with open("compressed.bin", "wb") as f:
@@ -71,14 +71,31 @@ def shannon_fano_compress(data : bytes, codes : Dict[int, str]):
         f.write(codes_serialized)
         f.write(compressed_data)
 
+def shannon_fano_decompress(codes : Dict[int, str], compressed_data : bytes) -> bytes:
+    reverseCodes = {v: k for k, v  in codes.items()}#key je string kod, a value je sam bajt
+
+    bitString = ''
+    for byte in compressed_data:
+        bitString += bin(byte)[2:].rjust(8, '0')
+
+    decodedBytes = bytearray()
+    currentCode = ''
+
+    for bit in bitString:
+        currentCode += bit
+        if currentCode in reverseCodes:
+            decodedBytes.append(reverseCodes[currentCode])
+            currentCode = ''
+
+    return bytes(decodedBytes)
 
 if __name__ == "__main__":
 
-    with open("test.bin", "wb") as f:
+    with open("original.bin", "wb") as f:
         f.write(bytes(range(256)))
 
 
-    with open("test.bin", "rb") as f:
+    with open("original.bin", "rb") as f:
         data = f.read()
 
     H, counts, probs = calculate_entrophy(data)
@@ -86,3 +103,14 @@ if __name__ == "__main__":
     sortedProbs, codes = sort_probs_desc(probs)
     shannon_fano_code(sortedProbs, codes)
     shannon_fano_compress(data, codes)
+
+    with open("compressed.bin", "rb") as f:
+        codes_size = int.from_bytes(f.read(4), byteorder='big')
+        codes_serialized = f.read(codes_size)
+        codes_loaded = pickle.loads(codes_serialized)
+        compressed_data = f.read()
+
+    decodedBytes = shannon_fano_decompress(codes_loaded, compressed_data)
+
+    with open("decompressed.bin", "wb") as f:
+        f.write(decodedBytes)
